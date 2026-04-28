@@ -4,15 +4,15 @@
 
 # ─── 경로 설정 ────────────────────────────────────────────────────────────────
 paths:
-  data_root:          "/kaggle/input/birdclef-2026"
-  train_audio:        "/kaggle/input/birdclef-2026/train_audio"
-  train_soundscapes:  "/kaggle/input/birdclef-2026/train_soundscapes"
-  train_meta:         "/kaggle/input/birdclef-2026/train_metadata.csv"
-  train_labels:       "/kaggle/input/birdclef-2026/train_soundscape_labels.csv"
-  test_soundscapes:   "/kaggle/input/birdclef-2026/test_soundscapes"
-  sample_submission:  "/kaggle/input/birdclef-2026/sample_submission.csv"
-  output_dir:         "/kaggle/working/outputs"
-  checkpoint_dir:     "/kaggle/working/checkpoints"
+  data_root:          "/kaggle/birdclef-2026"
+  train_audio:        "/kaggle/birdclef-2026/train_audio"
+  train_soundscapes:  "/kaggle/birdclef-2026/train_soundscapes"
+  train_meta:         "/kaggle/birdclef-2026/train_metadata.csv"
+  train_labels:       "/kaggle/birdclef-2026/train_soundscape_labels.csv"
+  test_soundscapes:   "/kaggle/birdclef-2026/test_soundscapes"
+  sample_submission:  "/kaggle/birdclef-2026/sample_submission.csv"
+  output_dir:         "/kaggle/outputs"
+  checkpoint_dir:     "/kaggle/checkpoints"
 
 # ─── 오디오 설정 ──────────────────────────────────────────────────────────────
 audio:

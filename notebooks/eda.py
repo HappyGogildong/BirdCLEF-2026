@@ -31,12 +31,16 @@ sns.set_theme(style="whitegrid", font_scale=1.1)
 plt.rcParams["figure.dpi"] = 120
 
 # ── 경로 설정 (로컬 실행 시 수정) ────────────────────────────────────────────
-DATA_ROOT = Path("/kaggle/input/birdclef-2026")
-TRAIN_META = DATA_ROOT / "train_metadata.csv"
+#kaggle notebook path
+#DATA_ROOT = Path("/kaggle/input/competitions/birdclef-2026")
+DATA_ROOT = Path("/kaggle/birdclef-2026")
+TRAIN_META = DATA_ROOT / "train.csv"
 TRAIN_LABELS = DATA_ROOT / "train_soundscape_labels.csv"
 TRAIN_AUDIO = DATA_ROOT / "train_audio"
 SOUNDSCAPES = DATA_ROOT / "train_soundscapes"
 SAMPLE_SUB = DATA_ROOT / "sample_submission.csv"
+TAXONOMY = DATA_ROOT / "taxonomy.csv"
+LOCATIONS = DATA_ROOT / "recording_location.txt"
 
 print("=" * 60)
 print("  BirdCLEF+ 2026 — EDA")
