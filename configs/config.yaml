@@ -1,0 +1,103 @@
+# =============================================================================
+# BirdCLEF+ 2026 — 전체 실험 설정 파일
+# =============================================================================
+
+# ─── 경로 설정 ────────────────────────────────────────────────────────────────
+paths:
+  data_root:          "/kaggle/input/birdclef-2026"
+  train_audio:        "/kaggle/input/birdclef-2026/train_audio"
+  train_soundscapes:  "/kaggle/input/birdclef-2026/train_soundscapes"
+  train_meta:         "/kaggle/input/birdclef-2026/train_metadata.csv"
+  train_labels:       "/kaggle/input/birdclef-2026/train_soundscape_labels.csv"
+  test_soundscapes:   "/kaggle/input/birdclef-2026/test_soundscapes"
+  sample_submission:  "/kaggle/input/birdclef-2026/sample_submission.csv"
+  output_dir:         "/kaggle/working/outputs"
+  checkpoint_dir:     "/kaggle/working/checkpoints"
+
+# ─── 오디오 설정 ──────────────────────────────────────────────────────────────
+audio:
+  sample_rate:      32000     # BirdCLEF 표준 샘플링 레이트 (Hz)
+  clip_duration:    5.0       # 추론/학습 단위 구간 (초)
+  n_fft:            1024
+  hop_length:       320       # 32000 / 100 → 100 프레임/초
+  n_mels:           128       # 멜 필터 뱅크 수
+  fmin:             50        # 최소 주파수 (Hz)  — 동물 소리 하한
+  fmax:             14000     # 최대 주파수 (Hz)
+  target_db:        -20.0     # 정규화 기준 dBFS
+  mono:             true
+
+# ─── 모델 설정 ────────────────────────────────────────────────────────────────
+model:
+  backbone:         "tf_efficientnet_b2_ns"  # timm 모델명 (Noisy Student pretrained)
+  pretrained:       true
+  num_classes:      234
+  in_channels:      1          # Grayscale Mel-Spectrogram
+  drop_rate:        0.3
+  drop_path_rate:   0.2
+  head_hidden_dim:  512
+
+# ─── 학습 설정 ────────────────────────────────────────────────────────────────
+training:
+  seed:             42
+  n_folds:          5
+  fold:             0          # 실행 시 CLI 오버라이드
+  epochs:           30
+  batch_size:       32
+  num_workers:      4
+  pin_memory:       true
+  grad_clip:        1.0
+  accumulation_steps: 2        # effective batch = 64
+
+  # Optimizer
+  optimizer:
+    name:           "adamw"
+    lr:             1.0e-4
+    weight_decay:   1.0e-2
+    betas:          [0.9, 0.999]
+    eps:            1.0e-8
+
+  # Scheduler
+  scheduler:
+    name:           "cosine_with_warmup"
+    warmup_epochs:  2
+    min_lr:         1.0e-6
+    t_max:          30
+
+  # Loss
+  loss:
+    name:           "bce_focal"  # 선택: bce / bce_focal / asymmetric
+    focal_gamma:    2.0
+    label_smoothing: 0.05
+    pos_weight_clip: 10.0       # 클래스 불균형 가중치 상한
+
+# ─── 증강 설정 ────────────────────────────────────────────────────────────────
+augmentation:
+  train:
+    # 파형 단계
+    add_gaussian_noise:   {p: 0.3, min_amplitude: 0.001, max_amplitude: 0.015}
+    time_stretch:         {p: 0.2, min_rate: 0.8, max_rate: 1.2}
+    pitch_shift:          {p: 0.2, min_semitones: -2, max_semitones: 2}
+    # 믹스업
+    mixup:                {p: 0.4, alpha: 0.4}
+    # 스펙트로그램 단계 (SpecAugment)
+    time_masking:         {p: 0.5, max_time_mask: 20}
+    freq_masking:         {p: 0.5, max_freq_mask: 20}
+    # 배경 잡음
+    background_noise:     {p: 0.3, min_snr_db: 3, max_snr_db: 30}
+  valid:
+    # 검증 / 추론 시 증강 없음
+    enabled: false
+
+# ─── 추론 설정 ────────────────────────────────────────────────────────────────
+inference:
+  tta:              true       # Test Time Augmentation
+  tta_folds:        [0, 1, 2, 3, 4]
+  threshold:        0.5
+  window_size:      5.0        # 초
+  step_size:        5.0        # 비겹침 슬라이딩
+
+# ─── WandB 설정 ───────────────────────────────────────────────────────────────
+wandb:
+  project:    "birdclef2026"
+  entity:     ""              # 개인 계정명
+  enabled:    false
