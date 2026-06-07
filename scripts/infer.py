@@ -58,6 +58,18 @@ def main():
         fold_ids=fold_ids,
     )
 
+    # ── 후처리: 앞뒤 1칸씩(총 3칸, 15초) 이동 평균 적용 (Sequence-aware smoothing) ──
+    # row_id는 'audio_id_endsec' 형식이므로 마지막 '_'를 기준으로 audio_id를 추출합니다.
+    pred_df['audio_id'] = pred_df['row_id'].apply(lambda x: x.rsplit('_', 1)[0])
+    
+    # 타겟 확률 컬럼만 선택하여 스무딩
+    class_cols = [c for c in pred_df.columns if c not in ['row_id', 'audio_id']]
+    smoothed_probs = pred_df.groupby('audio_id')[class_cols].rolling(window=3, center=True, min_periods=1).mean().reset_index(0, drop=True)
+    
+    # 덮어쓰기 및 임시 컬럼 삭제
+    pred_df[class_cols] = smoothed_probs
+    pred_df = pred_df.drop(columns=['audio_id'])
+
     # ── 제출 파일 저장 ─────────────────────────────────────────────────────────
     output_path = Path(cfg.paths.output_dir) / "submission.csv"
     save_submission(pred_df, output_path)

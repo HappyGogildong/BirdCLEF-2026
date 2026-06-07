@@ -128,7 +128,11 @@ class BirdClefTrainDataset(Dataset):
             mel = self.aug.apply_spectrogram(mel)
 
         tensor = melspec_to_tensor(mel)  # (1, H, W)
-        return {"spectrogram": tensor, "label": torch.tensor(label, dtype=torch.float32)}
+        return {
+            "spectrogram": tensor, 
+            "label": torch.tensor(label, dtype=torch.float32),
+            "row_id": str(row.get("audio_id", f"train_{idx}"))
+        }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -174,8 +178,21 @@ class SoundscapeDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         row = self.df.iloc[idx]
-        audio_id = str(row["audio_id"])
-        end_sec = float(row["seconds"])
+        filename = str(row["filename"])
+        audio_id = filename.replace(".ogg", "") if filename.endswith(".ogg") else filename
+        
+        end_str = str(row["end"])
+        if ":" in end_str:
+            parts = end_str.split(":")
+            if len(parts) == 3:
+                end_sec = float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+            elif len(parts) == 2:
+                end_sec = float(parts[0]) * 60 + float(parts[1])
+            else:
+                end_sec = float(parts[0])
+        else:
+            end_sec = float(end_str)
+            
         start_sec = end_sec - self.audio_cfg.clip_duration
         sr = self.audio_cfg.sample_rate
 
@@ -186,12 +203,15 @@ class SoundscapeDataset(Dataset):
         chunk = pad_or_trim(chunk, self.target_len, mode="constant")
         chunk = normalize_waveform(chunk, target_db=self.audio_cfg.target_db)
 
-        # 라벨 인코딩
-        species_str = row.get("species", "nocall")
+        # 라벨 인코딩 (primary_label은 세미콜론 ';'으로 여러 종이 분리되어 있을 수 있음)
+        species_str = str(row.get("primary_label", "nocall"))
         vec = np.zeros(self.n_classes, dtype=np.float32)
-        if isinstance(species_str, str) and species_str.lower() != "nocall":
-            for sp in species_str.strip().split():
+        if species_str.lower() != "nocall" and species_str.lower() != "nan":
+            for sp in species_str.strip().split(";"):
+                sp = sp.strip()
                 sidx = self.label2idx.get(sp)
+                if sidx is None and sp.isdigit():
+                    sidx = self.label2idx.get(int(sp))
                 if sidx is not None:
                     vec[sidx] = 1.0
 
@@ -203,7 +223,7 @@ class SoundscapeDataset(Dataset):
         return {
             "spectrogram": tensor,
             "label": torch.tensor(vec, dtype=torch.float32),
-            "row_id": str(row["row_id"]),
+            "row_id": str(row.get("row_id", f"{audio_id}_{end_sec}")),
         }
 
 

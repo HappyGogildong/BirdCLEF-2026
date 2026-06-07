@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np
 import torch
 from omegaconf import OmegaConf
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader, WeightedRandomSampler, ConcatDataset
 
 from src.data.augmentation import TrainAugmentation, WaveformMixup
 from src.data.dataset import BirdClefTrainDataset, SoundscapeDataset
@@ -62,13 +62,27 @@ def set_seed(seed: int = 42) -> None:
 # 샘플러: 클래스 불균형 완화 (오버샘플링)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def build_sampler(df, label2idx: dict) -> WeightedRandomSampler:
-    """primary_label 기준 역빈도 가중치 샘플러."""
-    counts = df["primary_label"].value_counts().to_dict()
-    weights = [1.0 / counts.get(row["primary_label"], 1.0) for _, row in df.iterrows()]
+def build_combined_sampler(train_df, soundscape_df, label2idx: dict) -> WeightedRandomSampler:
+    """train_audio와 train_soundscapes를 결합한 데이터셋용 역빈도 가중치 샘플러."""
+    counts = train_df["primary_label"].value_counts().to_dict()
+    
+    # 1. train_audio 샘플 가중치
+    train_weights = [1.0 / counts.get(row["primary_label"], 1.0) for _, row in train_df.iterrows()]
+    
+    # 2. soundscape 샘플 가중치 (train 가중치 평균의 1.5배를 부여하여 도메인 적응 강화)
+    if train_weights:
+        avg_weight = sum(train_weights) / len(train_weights)
+        soundscape_weight = avg_weight * 1.5
+    else:
+        soundscape_weight = 1.0
+    soundscape_weights = [soundscape_weight] * len(soundscape_df)
+    
+    # 3. 두 가중치 결합
+    all_weights = train_weights + soundscape_weights
+    
     sampler = WeightedRandomSampler(
-        weights=torch.tensor(weights, dtype=torch.float64),
-        num_samples=len(weights),
+        weights=torch.tensor(all_weights, dtype=torch.float64),
+        num_samples=len(all_weights),
         replacement=True,
     )
     return sampler
@@ -136,6 +150,18 @@ def main():
         is_train=True,
         augmentation=aug,
     )
+    
+    soundscape_ds = SoundscapeDataset(
+        labels_df=soundscape_df,
+        soundscape_dir=cfg.paths.train_soundscapes,
+        label2idx=label2idx,
+        audio_cfg=cfg.audio,
+        is_train=True,
+        augmentation=aug,
+    )
+    
+    combined_train_ds = ConcatDataset([train_ds, soundscape_ds])
+
     valid_ds = BirdClefTrainDataset(
         df=valid_df,
         audio_dir=cfg.paths.train_audio,
@@ -144,9 +170,9 @@ def main():
         is_train=False,
     )
 
-    sampler = build_sampler(train_df, label2idx)
+    sampler = build_combined_sampler(train_df, soundscape_df, label2idx)
     train_loader = DataLoader(
-        train_ds,
+        combined_train_ds,
         batch_size=cfg.training.batch_size,
         sampler=sampler,
         num_workers=cfg.training.num_workers,
